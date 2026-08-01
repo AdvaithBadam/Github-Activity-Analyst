@@ -10,7 +10,7 @@ from __future__ import annotations
 import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, UniqueConstraint, func
+from sqlalchemy import DateTime, ForeignKey, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -29,8 +29,11 @@ class Commit(Base):
     repo_id: Mapped[int] = mapped_column(ForeignKey("repos.id"))
     sha: Mapped[str] = mapped_column(index=True)
     message: Mapped[str] = mapped_column()
-    committed_at: Mapped[datetime.datetime] = mapped_column()
+    committed_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True)
+    )
     created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True),
         server_default=func.now(),
     )
 

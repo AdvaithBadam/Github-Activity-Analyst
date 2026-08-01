@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import func
+from sqlalchemy import DateTime, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -20,8 +20,11 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     github_username: Mapped[str] = mapped_column(unique=True, index=True)
-    github_created_at: Mapped[datetime.datetime] = mapped_column()
+    github_created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True)
+    )
     created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True),
         server_default=func.now(),
     )
 
