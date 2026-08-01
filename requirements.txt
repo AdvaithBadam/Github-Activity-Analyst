@@ -1,0 +1,60 @@
+# ── Core backend ──────────────────────────────────────────────
+fastapi==0.141.1
+uvicorn==0.52.0
+starlette==1.3.1          # fastapi dependency
+click==8.4.2              # uvicorn dependency
+h11==0.16.0               # uvicorn dependency
+httptools==0.8.0           # uvicorn[standard]
+watchfiles==1.2.0          # uvicorn[standard] – hot-reload
+websockets==17.0           # uvicorn[standard]
+PyYAML==6.0.3              # uvicorn[standard]
+anyio==4.14.2              # async runtime
+annotated-doc==0.0.5       # fastapi dependency
+annotated-types==0.8.0     # pydantic dependency
+typing_extensions==4.16.0
+typing-inspection==0.4.2
+
+# ── Database / ORM ───────────────────────────────────────────
+SQLAlchemy==2.0.51
+asyncpg==0.31.0
+alembic==1.18.5
+greenlet==3.5.4            # sqlalchemy[asyncio] dependency
+Mako==1.3.12               # alembic template engine
+MarkupSafe==3.0.3          # Mako dependency
+
+# ── Auth ─────────────────────────────────────────────────────
+PyJWT==2.13.0
+cryptography==49.0.0       # PyJWT[crypto] dependency
+cffi==2.1.0                # cryptography dependency
+pycparser==3.0             # cffi dependency
+passlib==1.7.4
+bcrypt==5.0.0              # passlib[bcrypt] dependency
+python-multipart==0.0.32
+
+# ── Caching / background jobs ────────────────────────────────
+redis==8.1.0
+APScheduler==3.11.3
+tzlocal==5.4.4             # APScheduler dependency
+tzdata==2026.3             # tzlocal dependency
+
+# ── Config / validation ──────────────────────────────────────
+pydantic==2.13.4
+pydantic_core==2.46.4
+pydantic-settings==2.14.2
+python-dotenv==1.2.2
+
+# ── GitHub API access ────────────────────────────────────────
+httpx==0.28.1
+httpcore==1.0.9            # httpx dependency
+certifi==2026.7.22         # httpx dependency
+idna==3.18                 # httpx dependency
+
+# ── Testing ──────────────────────────────────────────────────
+pytest==9.1.1
+pytest-asyncio==1.4.0
+# httpx (listed above) is also used as the async test client
+iniconfig==2.3.0           # pytest dependency
+packaging==26.2            # pytest dependency
+pluggy==1.6.0              # pytest dependency
+Pygments==2.20.0           # pytest dependency
+colorama==0.4.6            # pytest dependency (Windows)
