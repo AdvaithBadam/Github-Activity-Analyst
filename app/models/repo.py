@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -20,7 +20,9 @@ class Repo(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    github_repo_id: Mapped[int] = mapped_column(unique=True, index=True)
     name: Mapped[str] = mapped_column()
+    is_owner: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     github_created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True)
     )
