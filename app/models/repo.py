@@ -23,6 +23,7 @@ class Repo(Base):
     github_repo_id: Mapped[int] = mapped_column(unique=True, index=True)
     name: Mapped[str] = mapped_column()
     is_owner: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    owner_login: Mapped[str | None] = mapped_column(nullable=True)
     github_created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True)
     )
