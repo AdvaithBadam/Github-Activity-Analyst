@@ -7,6 +7,7 @@ Run with:
 from fastapi import FastAPI
 
 from app.api.auth import router as auth_router
+from app.api.sync import router as sync_router
 
 app = FastAPI(
     title="GitHub Activity Analyst",
@@ -16,3 +17,4 @@ app = FastAPI(
 
 # ── Routers ──────────────────────────────────────────────────────
 app.include_router(auth_router)
+app.include_router(sync_router)

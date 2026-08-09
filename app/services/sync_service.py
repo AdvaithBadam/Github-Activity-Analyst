@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import func, literal_column, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.commit import Commit
@@ -214,7 +214,7 @@ async def compute_daily_snapshots(
         )
         .join(Repo, Commit.repo_id == Repo.id)
         .where(Repo.user_id == user.id)
-        .group_by(func.date(func.timezone("UTC", Commit.committed_at)))
+        .group_by(literal_column("snapshot_date"))
     )
     result = await session.execute(stmt)
     rows = result.all()
