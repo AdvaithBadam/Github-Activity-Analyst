@@ -1,18 +1,43 @@
 """Standalone smoke-test for GET /stats/summary.
 
-Seeds a known set of DailySnapshot and Commit rows into the DB so the
-response values are deterministic, hits the route via httpx.ASGITransport,
-then prints the status code and JSON body.
+Seeds a known set of DailySnapshot rows into the DB so the response values
+are deterministic, hits the route via httpx.ASGITransport, then prints the
+status code and JSON body and asserts all expected values.
 
-Known-data scenario seeded
---------------------------
-* 5 consecutive active days ending yesterday (UTC), giving a current_streak
-  of 5 and a longest_streak of at least 5.
-* 2 extra active days seeded 30 days ago, so the longest streak is NOT
-  extended by them (they are isolated).
-* 3 active days in the last 7 days (inside the weekly window), so
-  weekly_velocity is the sum of their commit counts.
-* 2 distinct repos have commits within the last 14 days, so active_repos == 2.
+Boundary test for weekly_velocity
+----------------------------------
+The route sets the window cutoff at ``now - timedelta(days=6)``, meaning the
+query is ``DailySnapshot.date >= cutoff.date()``  ->  7 calendar days
+inclusive of today (today-6 through today).
+
+  today-6  ->  IN  window  (date >= today-6  true)
+  today-7  ->  OUT of window  (date < today-6   false)
+
+Both days are seeded with 1 commit so the boundary effect is unambiguous:
+  weekly_velocity = 1 (today-6) + 1 (today-5) + 1 (today-4) + 2 (today-3)
+                  + 3 (today-2) + 4 (today-1) = 12
+  today-7's commit count (1) is NOT added -> if it were included, the total
+  would be 13.
+
+Seeded DailySnapshot rows (all existing rows for this user are wiped first)
+----------------------------------------------------------------------------
+  today-7  ->  1 commit   (OUT of weekly window, IN streak)
+  today-6  ->  1 commit   (IN  weekly window, IN streak)
+  today-5  ->  1 commit   (IN  weekly window, IN streak)
+  today-4  ->  1 commit   (IN  weekly window, IN streak)
+  today-3  ->  2 commits  (IN  weekly window, IN streak)
+  today-2  ->  3 commits  (IN  weekly window, IN streak)
+  today-1  ->  4 commits  (IN  weekly window, IN streak)
+  today    ->  NOT seeded  (streak ends yesterday, streak counts from today-7)
+  today-30 ->  7 commits  (isolated, OUT of weekly window, does NOT extend streak)
+
+Expected metrics
+----------------
+  current_streak  = 7   (today-7 through today-1 are consecutive; today missing)
+  longest_streak  = 7   (same run is the longest)
+  weekly_velocity = 12  (sum of today-6..today-1: 1+1+1+2+3+4=12; today-7 excluded)
+  active_repos    >= 2  (2 seeded test repos with recent commits, plus any
+                         real synced repos in the last 14 days)
 
 Prerequisites
 -------------
@@ -88,61 +113,39 @@ async def seed_test_data(
 ) -> None:
     """Wipe and re-seed DailySnapshot + Commit rows for a deterministic scenario.
 
-    Scenario
-    --------
-    DailySnapshot rows seeded (all existing rows for this user are wiped first):
-        - today-5, today-4, today-3, today-2, today-1 (yesterday)
-          commit_counts: 1, 1, 2, 3, 4  → 5-day streak ending yesterday
-        - today is NOT seeded → streak ends yesterday (still 5)
-        - 30 days ago  →  isolated day (longest stays 5, not extended)
-
-    weekly_velocity (last 7 days = date >= today-7):
-        Only today-5 through today-1 fall in the window.
-        Sum: 1+1+2+3+4 = 11  (today-6 and today-7 have no snapshot row)
-
-    active_repos:
-        NOTE: this metric counts ALL repos for this user with commits in the
-        last 14 days, including real repos already synced from GitHub.  The
-        seed inserts 2 extra test repos (ids 15, 16) but previously-synced
-        repos with recent commits are also counted.  The assertion below
-        checks >= 2 rather than == 2 to accommodate real data.
-
-    Commit rows (for active_repos):
-        - 2 test repos each with 1 commit in the last 14 days
+    See module docstring for the full scenario description.
     """
-    yesterday = today - timedelta(days=1)
-
-    # Days in the 5-day streak: today-5 through today-1 (yesterday)
-    streak_days = [today - timedelta(days=i) for i in range(1, 6)]
-    streak_counts = {
-        today - timedelta(days=1): 4,  # yesterday
-        today - timedelta(days=2): 3,
-        today - timedelta(days=3): 2,
-        today - timedelta(days=4): 1,
+    snapshot_counts = {
+        today - timedelta(days=7): 1,   # OUT of weekly window -- boundary test
+        today - timedelta(days=6): 1,   # IN  weekly window -- boundary test
         today - timedelta(days=5): 1,
+        today - timedelta(days=4): 1,
+        today - timedelta(days=3): 2,
+        today - timedelta(days=2): 3,
+        today - timedelta(days=1): 4,   # yesterday
+        # today: NOT seeded (streak ends at yesterday)
+        today - timedelta(days=30): 7,  # isolated, out of window
     }
-    isolated_day = today - timedelta(days=30)
 
     async with session_factory() as session:
-        # ── Clear existing snapshot rows for this user ────────────
         await session.execute(
             delete(DailySnapshot).where(DailySnapshot.user_id == user.id)
         )
-
-        # ── Seed DailySnapshot rows ───────────────────────────────
-        for d, count in streak_counts.items():
+        for d, count in snapshot_counts.items():
             session.add(DailySnapshot(user_id=user.id, date=d, commit_count=count))
-
-        # Isolated day 30 days ago (longest streak stays at 5)
-        session.add(DailySnapshot(user_id=user.id, date=isolated_day, commit_count=7))
-
         await session.commit()
 
-    # ── Ensure 2 test repos exist for the active_repos metric ────
+    print(f"Seeded {len(snapshot_counts)} DailySnapshot rows:")
+    for d in sorted(snapshot_counts):
+        offset = (today - d).days
+        in_window = d >= today - timedelta(days=6)
+        window_label = "IN  weekly window" if in_window else "OUT of weekly window"
+        print(f"  today-{offset:2d}  ({d})  count={snapshot_counts[d]}  [{window_label}]")
+
     async with session_factory() as session:
         test_repo_ids: list[int] = []
         for i in range(1, 3):
-            fake_github_repo_id = -(user.id * 100 + i)  # negative to avoid clashes
+            fake_github_repo_id = -(user.id * 100 + i)
             result = await session.execute(
                 select(Repo).where(
                     Repo.user_id == user.id,
@@ -163,23 +166,21 @@ async def seed_test_data(
                 await session.flush()
             test_repo_ids.append(repo.id)
 
-        # Clear old test commits for these repos
         for rid in test_repo_ids:
             await session.execute(delete(Commit).where(Commit.repo_id == rid))
 
-        # Insert 1 commit in last 14 days per test repo
         for idx, rid in enumerate(test_repo_ids):
             session.add(
                 Commit(
                     repo_id=rid,
                     sha=f"deadbeef0{idx}0000000000000000000000000000000",
-                    message=f"test commit for repo {idx+1}",
+                    message=f"test commit for repo {idx + 1}",
                     committed_at=datetime.now(timezone.utc) - timedelta(days=idx + 1),
                 )
             )
 
         await session.commit()
-        print(f"Seeded test repos: {[f'id={rid}' for rid in test_repo_ids]}")
+        print(f"\nSeeded test repos: {[f'id={rid}' for rid in test_repo_ids]}")
 
 
 async def main() -> None:
@@ -189,7 +190,6 @@ async def main() -> None:
     engine = create_async_engine(DATABASE_URL, echo=False)
     session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
-    # ── Resolve GitHub username ───────────────────────────────────
     async with httpx.AsyncClient() as client:
         resp = await client.get(
             "https://api.github.com/user",
@@ -209,41 +209,67 @@ async def main() -> None:
     )
     print(f"GitHub user: {github_username}")
 
-    # ── Ensure user row exists ────────────────────────────────────
     user = await get_or_create_user(session_factory, github_username, github_created_at)
     print(f"User id={user.id}\n")
 
-    # ── Seed deterministic test data ──────────────────────────────
-    print("Seeding test data...")
+    print("-- Seeding test data --------------------------------------------------")
     await seed_test_data(session_factory, user, today)
-    print("Expected metrics:")
-    print("  current_streak   = 5   (5-day streak ending yesterday)")
-    print("  longest_streak   = 5   (isolated day 30d ago doesn't extend it)")
-    print("  weekly_velocity  = 11  (today-5..today-1 in window: 1+1+2+3+4)")
-    print("  active_repos     >= 2  (2 seeded test repos + any real synced repos in last 14d)")
+
+    print()
+    print("-- Expected metrics ---------------------------------------------------")
+    print("  current_streak  = 7   (today-7 .. today-1 consecutive; today missing)")
+    print("  longest_streak  = 7   (same run)")
+    print("  weekly_velocity = 12  (today-6..today-1 in window: 1+1+1+2+3+4;")
+    print("                         today-7 count=1 is OUT of window -> NOT added;")
+    print("                         if included it would be 13)")
+    print("  active_repos    >= 2  (2 seeded test repos + any synced repos in last 14d)")
     print()
 
-    # ── Issue JWT ─────────────────────────────────────────────────
     jwt_token = create_access_token(user.id, github_username)
 
-    # ── Hit GET /stats/summary ────────────────────────────────────
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.get("/stats/summary", cookies={"access_token": jwt_token})
 
+    print("-- Actual response ----------------------------------------------------")
     print(f"STATUS CODE: {resp.status_code}")
-    print("JSON BODY:")
-    print(resp.text)
+    print(f"JSON BODY:   {resp.text}")
+    print()
 
-    import json
+    print("-- Assertions ---------------------------------------------------------")
     body = resp.json()
-    assert resp.status_code == 200, f"Expected 200, got {resp.status_code}"
-    assert body["current_streak"] == 5, f"current_streak: expected 5, got {body['current_streak']}"
-    assert body["longest_streak"] == 5, f"longest_streak: expected 5, got {body['longest_streak']}"
-    assert body["weekly_velocity"] == 11, f"weekly_velocity: expected 11, got {body['weekly_velocity']}"
-    assert body["active_repos"] >= 2, f"active_repos: expected >= 2, got {body['active_repos']}"
-    assert "computed_at_utc" in body, "missing computed_at_utc field"
-    print("\n[PASS] All assertions passed.")
+
+    assert resp.status_code == 200, \
+        f"FAIL: expected 200, got {resp.status_code}"
+    print("  [PASS] status 200")
+
+    assert body["current_streak"] == 7, \
+        f"FAIL: current_streak expected 7, got {body['current_streak']}"
+    print(f"  [PASS] current_streak = {body['current_streak']}")
+
+    assert body["longest_streak"] == 7, \
+        f"FAIL: longest_streak expected 7, got {body['longest_streak']}"
+    print(f"  [PASS] longest_streak = {body['longest_streak']}")
+
+    assert body["weekly_velocity"] == 12, \
+        (
+            f"FAIL: weekly_velocity expected 12 "
+            f"(today-6 IN window, today-7 OUT of window), "
+            f"got {body['weekly_velocity']}"
+        )
+    print(f"  [PASS] weekly_velocity = {body['weekly_velocity']}  (today-6 IN, today-7 OUT -> 12 not 13)")
+
+    assert body["active_repos"] >= 2, \
+        f"FAIL: active_repos expected >= 2, got {body['active_repos']}"
+    print(f"  [PASS] active_repos = {body['active_repos']}  (>= 2)")
+
+    assert "computed_at_utc" in body, "FAIL: missing computed_at_utc field"
+    print(f"  [PASS] computed_at_utc = {body['computed_at_utc']}")
+
+    print()
+    print("=" * 60)
+    print("  All assertions passed.")
+    print("=" * 60)
 
     await engine.dispose()
 

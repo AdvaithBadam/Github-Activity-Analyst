@@ -128,7 +128,7 @@ async def get_stats_summary(user: User = Depends(get_current_user)) -> dict:
     """
     now_utc: datetime.datetime = datetime.datetime.now(timezone.utc)
     today_utc: date = now_utc.date()
-    seven_days_ago: datetime.datetime = now_utc - timedelta(days=7)
+    seven_days_ago: datetime.datetime = now_utc - timedelta(days=6)
     fourteen_days_ago: datetime.datetime = now_utc - timedelta(days=14)
 
     # ── 1. Fetch all active-commit dates (used for both streak metrics) ──────
