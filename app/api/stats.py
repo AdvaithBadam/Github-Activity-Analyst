@@ -1,19 +1,28 @@
 """Activity statistics routes.
 
 Routes:
-    GET /stats/summary — return four activity metrics for the current user:
+    GET /stats/summary -- return four activity metrics for the current user:
         current_streak, longest_streak, weekly_velocity, active_repos.
+
+Caching
+-------
+Results are cached in Redis under key ``stats_summary:{user_id}`` with a
+300-second TTL (cache-aside pattern).  Cache failures are fail-open: a Redis
+outage causes the route to compute stats from the DB normally rather than
+returning a 500.
 """
 
 from __future__ import annotations
 
 import datetime
+import json
 import logging
 from datetime import date, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import distinct, func, select
 
+from app.cache import get_redis_client
 from app.db import async_session
 from app.dependencies import get_current_user
 from app.models.commit import Commit
@@ -24,6 +33,10 @@ from app.models.user import User
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/stats", tags=["stats"])
+
+# Cache key pattern and TTL
+_CACHE_KEY = "stats_summary:{user_id}"
+_CACHE_TTL_SECONDS = 300  # 5 minutes
 
 
 # ── Streak helpers ────────────────────────────────────────────────
@@ -131,6 +144,27 @@ async def get_stats_summary(user: User = Depends(get_current_user)) -> dict:
     seven_days_ago: datetime.datetime = now_utc - timedelta(days=6)
     fourteen_days_ago: datetime.datetime = now_utc - timedelta(days=14)
 
+    cache_key = _CACHE_KEY.format(user_id=user.id)
+
+    # ── Cache read (fail-open) ───────────────────────────────────────────────
+    try:
+        redis = get_redis_client()
+        cached = await redis.get(cache_key)
+        if cached is not None:
+            payload = json.loads(cached)
+            payload["cache_hit"] = True
+            logger.info(
+                "get_stats_summary: cache HIT for user_id=%s",
+                user.id,
+            )
+            return payload
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "get_stats_summary: Redis read failed for user_id=%s — falling through to DB: %s",
+            user.id,
+            exc,
+        )
+
     # ── 1. Fetch all active-commit dates (used for both streak metrics) ──────
     try:
         async with async_session() as session:
@@ -201,8 +235,8 @@ async def get_stats_summary(user: User = Depends(get_current_user)) -> dict:
         ) from exc
 
     logger.info(
-        "get_stats_summary: user_id=%s — current_streak=%d, longest_streak=%d, "
-        "weekly_velocity=%d, active_repos=%d",
+        "get_stats_summary: cache MISS for user_id=%s -- current_streak=%d, "
+        "longest_streak=%d, weekly_velocity=%d, active_repos=%d",
         user.id,
         current_streak,
         longest_streak,
@@ -210,10 +244,24 @@ async def get_stats_summary(user: User = Depends(get_current_user)) -> dict:
         active_repos,
     )
 
-    return {
+    result_payload = {
         "current_streak": current_streak,
         "longest_streak": longest_streak,
         "weekly_velocity": weekly_velocity,
         "active_repos": active_repos,
         "computed_at_utc": now_utc.isoformat(),
+        "cache_hit": False,
     }
+
+    # ── Cache write (fail-open) ──────────────────────────────────────────────
+    try:
+        redis = get_redis_client()
+        await redis.set(cache_key, json.dumps(result_payload), ex=_CACHE_TTL_SECONDS)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "get_stats_summary: Redis write failed for user_id=%s — result NOT cached: %s",
+            user.id,
+            exc,
+        )
+
+    return result_payload

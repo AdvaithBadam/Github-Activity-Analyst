@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 10080  # 7 days
 
+    # ── Redis (caching) ───────────────────────────────────────────
+    REDIS_URL: str = "redis://localhost:6379/0"
+
+    # ── Frontend ─────────────────────────────────────────────────
+    FRONTEND_URL: str = "http://localhost:5173"
+
 
 # Module-level singleton so the rest of the app can just
 # ``from app.config import settings``.

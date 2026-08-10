@@ -14,6 +14,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from app.cache import invalidate_stats_cache
 from app.db import async_session
 from app.dependencies import get_current_user
 from app.models.user import User
@@ -118,6 +119,11 @@ async def sync_github(user: User = Depends(get_current_user)) -> dict:
             status_code=500,
             detail="Unexpected error during daily snapshot computation — see server logs for details.",
         ) from exc
+
+    # ── Invalidate stale stats cache (fail-open) ───────────────────────────────
+    # All three pipeline steps completed successfully — evict the cached entry
+    # so the next GET /stats/summary recomputes from fresh DB data.
+    await invalidate_stats_cache(user.id)
 
     # ── Build response summary ────────────────────────────────────────────────
     # Map repo.id → repo.name so the response is human-readable.

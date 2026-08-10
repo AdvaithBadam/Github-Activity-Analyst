@@ -12,7 +12,7 @@ from urllib.parse import urlencode
 
 import httpx
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Query
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 
 from app.config import settings
@@ -141,9 +141,7 @@ async def github_callback(
     # ── Step 4: issue JWT & respond ───────────────────────────────
     jwt_token = create_access_token(user.id, github_username)
 
-    response = JSONResponse(
-        content={"status": "connected", "github_username": github_username}
-    )
+    response = RedirectResponse(url=settings.FRONTEND_URL, status_code=302)
     response.set_cookie(
         key="access_token",
         value=jwt_token,
