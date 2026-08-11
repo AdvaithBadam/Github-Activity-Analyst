@@ -416,3 +416,134 @@ html, body {
     padding: 36px 24px;
   }
 }
+
+/* ── Panel wrapper (shared by all three new sections) ────────── */
+.panel {
+  background: var(--bg-glass);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-card);
+  padding: 28px;
+  backdrop-filter: blur(12px);
+  box-shadow: var(--shadow-card);
+  margin-top: 24px;
+}
+
+.panel-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+  margin-bottom: 20px;
+}
+
+.panel-subtitle {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.panel-chart-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 12px;
+}
+
+.panel-error {
+  font-size: 0.875rem;
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.1);
+  border: 1px solid rgba(248, 113, 113, 0.25);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
+
+.panel-empty {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  padding: 20px 0;
+  text-align: center;
+}
+
+/* ── Contribution heatmap ─────────────────────────────────────── */
+.heatmap-grid {
+  display: grid;
+  /* 7 rows (Mon–Sun), columns flow automatically left-to-right */
+  grid-template-rows: repeat(7, 12px);
+  grid-auto-flow: column;
+  grid-auto-columns: 12px;
+  gap: 3px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  margin-bottom: 14px;
+}
+
+.heatmap-cell {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  display: inline-block;
+  cursor: default;
+  transition: opacity 0.15s ease;
+}
+
+.heatmap-cell:hover {
+  opacity: 0.75;
+}
+
+/* Intensity levels — 0 = no activity, 4 = highest */
+.hc-empty { background: transparent; }
+.hc-0     { background: rgba(255, 255, 255, 0.06); }
+.hc-1     { background: rgba(45, 212, 191, 0.25); }
+.hc-2     { background: rgba(45, 212, 191, 0.50); }
+.hc-3     { background: rgba(45, 212, 191, 0.75); }
+.hc-4     { background: rgba(45, 212, 191, 1.00); }
+
+.heatmap-legend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.legend-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin: 0 4px;
+}
+
+/* ── Repos chart ──────────────────────────────────────────────── */
+.chart-container--repos {
+  height: 220px;
+}
+
+/* ── Activity-pattern side-by-side charts ────────────────────── */
+.pattern-charts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.pattern-chart-wrap {
+  min-width: 0; /* prevent overflow in grid */
+}
+
+.chart-container--pattern {
+  height: 180px;
+}
+
+@media (max-width: 640px) {
+  .pattern-charts {
+    grid-template-columns: 1fr;
+  }
+
+  .chart-container--repos {
+    height: 180px;
+  }
+}

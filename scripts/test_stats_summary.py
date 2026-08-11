@@ -54,10 +54,10 @@ import os
 import sys
 from datetime import datetime, date, timedelta, timezone
 
-sys.path.insert(0, r"c:\VS Files\github files\Github-Activity-Analyst")
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from dotenv import load_dotenv
-load_dotenv(r"c:\VS Files\github files\Github-Activity-Analyst\.env")
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 import httpx
 from sqlalchemy import select, delete

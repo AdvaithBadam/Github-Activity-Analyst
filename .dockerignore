@@ -1,0 +1,46 @@
+# ── Virtual environment (never copy into the image) ──────────────────────────
+venv/
+.venv/
+
+# ── Python bytecode ───────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# ── Build / dist artefacts ────────────────────────────────────────────────────
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# ── Test infrastructure ────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ── Scripts (dev/test helpers — not needed at runtime) ────────────────────────
+scripts/
+
+# ── Frontend (served separately, not by the FastAPI image) ────────────────────
+frontend/
+
+# ── Git history ───────────────────────────────────────────────────────────────
+.git/
+.gitignore
+
+# ── IDE / editor config ───────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Secrets — NEVER bake into the image; inject at runtime via env_file ───────
+.env
+.env.*
+
+# ── Docker files themselves (no need inside the image) ────────────────────────
+Dockerfile
+docker-compose.yml
+.dockerignore
