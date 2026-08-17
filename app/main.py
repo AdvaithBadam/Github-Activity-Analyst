@@ -34,3 +34,10 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(sync_router)
 app.include_router(stats_router)
+
+
+# ── Health check ─────────────────────────────────────────────────
+@app.get("/health", tags=["ops"])
+async def health() -> dict:
+    """Liveness probe — returns 200 as long as the process is alive."""
+    return {"status": "ok"}

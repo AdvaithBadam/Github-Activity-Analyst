@@ -82,8 +82,8 @@ jobs:
           TEST_GITHUB_PAT: ${{ secrets.TEST_GITHUB_PAT }}
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
           JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
-          GITHUB_CLIENT_ID: ${{ secrets.GH_CLIENT_ID }}
-          GITHUB_CLIENT_SECRET: ${{ secrets.GH_CLIENT_SECRET }}
+          GITHUB_CLIENT_ID: ${{ secrets.GITHUB_CLIENT_ID }}
+          GITHUB_CLIENT_SECRET: ${{ secrets.GITHUB_CLIENT_SECRET }}
           REDIS_URL: redis://localhost:6379/0
         run: python scripts/test_sync_repos.py
 
@@ -93,8 +93,8 @@ jobs:
           TEST_GITHUB_PAT: ${{ secrets.TEST_GITHUB_PAT }}
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
           JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
-          GITHUB_CLIENT_ID: ${{ secrets.GH_CLIENT_ID }}
-          GITHUB_CLIENT_SECRET: ${{ secrets.GH_CLIENT_SECRET }}
+          GITHUB_CLIENT_ID: ${{ secrets.GITHUB_CLIENT_ID }}
+          GITHUB_CLIENT_SECRET: ${{ secrets.GITHUB_CLIENT_SECRET }}
           REDIS_URL: redis://localhost:6379/0
         run: python scripts/test_sync_commits.py
 
@@ -104,8 +104,8 @@ jobs:
           TEST_GITHUB_PAT: ${{ secrets.TEST_GITHUB_PAT }}
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
           JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
-          GITHUB_CLIENT_ID: ${{ secrets.GH_CLIENT_ID }}
-          GITHUB_CLIENT_SECRET: ${{ secrets.GH_CLIENT_SECRET }}
+          GITHUB_CLIENT_ID: ${{ secrets.GITHUB_CLIENT_ID }}
+          GITHUB_CLIENT_SECRET: ${{ secrets.GITHUB_CLIENT_SECRET }}
           REDIS_URL: redis://localhost:6379/0
         run: python scripts/test_compute_daily_snapshots.py
 
@@ -115,8 +115,8 @@ jobs:
           TEST_GITHUB_PAT: ${{ secrets.TEST_GITHUB_PAT }}
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
           JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
-          GITHUB_CLIENT_ID: ${{ secrets.GH_CLIENT_ID }}
-          GITHUB_CLIENT_SECRET: ${{ secrets.GH_CLIENT_SECRET }}
+          GITHUB_CLIENT_ID: ${{ secrets.GITHUB_CLIENT_ID }}
+          GITHUB_CLIENT_SECRET: ${{ secrets.GITHUB_CLIENT_SECRET }}
           REDIS_URL: redis://localhost:6379/0
         run: python scripts/test_stats_summary.py
 
@@ -126,8 +126,8 @@ jobs:
           TEST_GITHUB_PAT: ${{ secrets.TEST_GITHUB_PAT }}
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
           JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
-          GITHUB_CLIENT_ID: ${{ secrets.GH_CLIENT_ID }}
-          GITHUB_CLIENT_SECRET: ${{ secrets.GH_CLIENT_SECRET }}
+          GITHUB_CLIENT_ID: ${{ secrets.GITHUB_CLIENT_ID }}
+          GITHUB_CLIENT_SECRET: ${{ secrets.GITHUB_CLIENT_SECRET }}
           REDIS_URL: redis://localhost:6379/0
         run: python scripts/test_cache_behavior.py
 
@@ -137,8 +137,8 @@ jobs:
           TEST_GITHUB_PAT: ${{ secrets.TEST_GITHUB_PAT }}
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
           JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
-          GITHUB_CLIENT_ID: ${{ secrets.GH_CLIENT_ID }}
-          GITHUB_CLIENT_SECRET: ${{ secrets.GH_CLIENT_SECRET }}
+          GITHUB_CLIENT_ID: ${{ secrets.GITHUB_CLIENT_ID }}
+          GITHUB_CLIENT_SECRET: ${{ secrets.GITHUB_CLIENT_SECRET }}
           REDIS_URL: redis://localhost:6379/0
         run: python scripts/test_activity_pattern.py
 
