@@ -61,26 +61,25 @@ jobs:
           branch_name: ${{ steps.branch-name.outputs.name }}
 
       # Debug: print the raw URL format from Neon with credentials masked.
-      # Never print raw credentials — sed replaces everything between the second
-      # colon and the @ sign (i.e. the password) with ****.
-      # Read this output in the CI log to determine the actual scheme/format
-      # before committing to any URL-rewrite logic.
+      # The correct v6 output is db_url_pooled (db_url_with_pooler does not exist).
+      # Never print raw credentials — sed replaces the password segment with ****.
       - name: Debug — masked DB URL format from Neon
         env:
-          DATABASE_URL: ${{ steps.neon-branch.outputs.db_url_with_pooler }}
+          DATABASE_URL: ${{ steps.neon-branch.outputs.db_url_pooled }}
         run: |
           echo "Masked URL: $(echo "$DATABASE_URL" | sed -E 's/:[^:@]+@/:****@/')"
 
       # Run migrations against the ephemeral branch.
-      # The Neon action outputs plain postgresql:// but alembic/env.py and the
-      # app both use async_engine_from_config which needs postgresql+asyncpg://.
+      # create-branch-action@v6 outputs db_url_pooled which uses the postgres://
+      # scheme (shorthand). Both postgres:// and postgresql:// must be rewritten
+      # to postgresql+asyncpg:// for SQLAlchemy async engines.
       # We rewrite once here and export to GITHUB_ENV so all later steps
       # automatically inherit the corrected URL.
       - name: Rewrite DB URL and run alembic migrations
         env:
-          DATABASE_URL: ${{ steps.neon-branch.outputs.db_url_with_pooler }}
+          DATABASE_URL: ${{ steps.neon-branch.outputs.db_url_pooled }}
         run: |
-          ASYNC_URL=$(echo "$DATABASE_URL" | sed 's|postgresql://|postgresql+asyncpg://|')
+          ASYNC_URL=$(echo "$DATABASE_URL" | sed -E 's|^postgres(ql)?://|postgresql+asyncpg://|')
           echo "ASYNC_DATABASE_URL=$ASYNC_URL" >> "$GITHUB_ENV"
           DATABASE_URL="$ASYNC_URL" alembic upgrade head
 
