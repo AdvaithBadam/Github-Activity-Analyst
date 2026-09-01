@@ -79,7 +79,11 @@ jobs:
         env:
           DATABASE_URL: ${{ steps.neon-branch.outputs.db_url_pooled }}
         run: |
-          ASYNC_URL=$(echo "$DATABASE_URL" | sed -E 's|^postgres(ql)?://|postgresql+asyncpg://|')
+          # 1. postgres(ql):// → postgresql+asyncpg:// (asyncpg dialect)
+          # 2. sslmode=require → ssl=require  (libpq param → asyncpg param)
+          ASYNC_URL=$(echo "$DATABASE_URL" \
+            | sed -E 's|^postgres(ql)?://|postgresql+asyncpg://|' \
+            | sed 's|sslmode=|ssl=|g')
           echo "ASYNC_DATABASE_URL=$ASYNC_URL" >> "$GITHUB_ENV"
           DATABASE_URL="$ASYNC_URL" alembic upgrade head
 
