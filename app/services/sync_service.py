@@ -10,7 +10,10 @@ Functions:
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
+
+logger = logging.getLogger(__name__)
 
 from sqlalchemy import func, literal_column, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,7 +22,7 @@ from app.models.commit import Commit
 from app.models.daily_snapshot import DailySnapshot
 from app.models.repo import Repo
 from app.models.user import User
-from app.services.github_client import GitHubClient
+from app.services.github_client import GitHubAPIError, GitHubClient
 
 
 async def sync_repos(
@@ -130,11 +133,20 @@ async def sync_commits(
     use-case that's acceptable — the next sync will simply re-fetch and
     re-insert.  If you need per-repo atomicity, wrap each repo's block
     in its own ``async with session.begin_nested():`` savepoint.
+
+    Repos where the GitHub API returns 404 (deleted, transferred, or token
+    scope gap) are skipped with a WARNING log and excluded from the returned
+    dict.  Any non-404 ``GitHubAPIError`` is re-raised immediately.
+    Summary counters (repos_synced, repos_skipped_404) are logged at INFO
+    level before returning.
     """
     # Default cutoff for first-time sync: 12 months of history
     default_since = datetime.now(timezone.utc) - timedelta(days=365)
 
     new_commit_counts: dict[int, int] = {}
+
+    repos_synced = 0
+    repos_skipped_404 = 0
 
     for repo in repos:
         owner = repo.owner_login or user.github_username
@@ -150,7 +162,18 @@ async def sync_commits(
         since_cutoff = latest_committed_at if latest_committed_at is not None else default_since
 
         # ── Fetch commits from GitHub ────────────────────────────
-        raw_commits = await github_client.get_commits(owner, repo_name, since=since_cutoff)
+        try:
+            raw_commits = await github_client.get_commits(owner, repo_name, since=since_cutoff)
+        except GitHubAPIError as exc:
+            if exc.status_code == 404:
+                logger.warning(
+                    "404 fetching commits for %s/%s (owned repo) — "
+                    "possibly deleted or scope issue, skipping",
+                    owner, repo_name,
+                )
+                repos_skipped_404 += 1
+                continue
+            raise
 
         # ── Upsert commits ───────────────────────────────────────
         new_count = 0
@@ -181,8 +204,15 @@ async def sync_commits(
             new_count += 1
 
         new_commit_counts[repo.id] = new_count
+        repos_synced += 1
 
     await session.commit()
+
+    logger.info(
+        "sync_commits complete — synced=%d, skipped_404=%d",
+        repos_synced, repos_skipped_404,
+    )
+
     return new_commit_counts
 
 
