@@ -217,6 +217,6 @@ jobs:
         run: npm install -g @railway/cli
 
       - name: Deploy
-        run: railway up --ci
+        run: railway up --ci --service Github-Activity-Analyst
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}

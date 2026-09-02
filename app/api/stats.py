@@ -21,7 +21,7 @@ import logging
 from datetime import date, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import distinct, extract, func, label, select
+from sqlalchemy import and_, distinct, extract, func, label, select
 
 from app.cache import get_redis_client
 from app.db import async_session
@@ -408,21 +408,32 @@ async def get_stats_repos(user: User = Depends(get_current_user)) -> dict:
             exc,
         )
 
-    # ── Query: commits per repo in the last 30 days ──────────────────────────
+    # ── Query: all repos + commit activity in the last 30 days ──────────────
+    # Starts from Repo with a LEFT JOIN to Commit so every repo appears in
+    # the result regardless of whether it has commits in the window.
     try:
         async with async_session() as session:
             result = await session.execute(
                 select(
                     Repo.name,
+                    Repo.is_owner,
                     func.count(Commit.id).label("commit_count"),
                     func.max(Commit.committed_at).label("last_commit_at"),
+                    func.min(Commit.committed_at).label("first_commit_at"),
+                    func.count(
+                        distinct(func.date(func.timezone("UTC", Commit.committed_at)))
+                    ).label("active_days"),
                 )
-                .join(Repo, Commit.repo_id == Repo.id)
-                .where(
-                    Repo.user_id == user.id,
-                    Commit.committed_at >= thirty_days_ago,
+                .select_from(Repo)
+                .outerjoin(
+                    Commit,
+                    and_(
+                        Commit.repo_id == Repo.id,
+                        Commit.committed_at >= thirty_days_ago,
+                    ),
                 )
-                .group_by(Repo.name)
+                .where(Repo.user_id == user.id)
+                .group_by(Repo.name, Repo.is_owner)
                 .order_by(func.count(Commit.id).desc())
             )
             rows = result.all()
@@ -436,14 +447,25 @@ async def get_stats_repos(user: User = Depends(get_current_user)) -> dict:
             detail="Unexpected error computing repo activity — see server logs.",
         ) from exc
 
-    repos = [
-        {
+    repos = []
+    for row in rows:
+        entry: dict = {
             "repo_name": row.name,
+            "is_owner": row.is_owner,
             "commit_count": row.commit_count,
             "last_commit_at": row.last_commit_at.isoformat() if row.last_commit_at else None,
         }
-        for row in rows
-    ]
+        if not row.is_owner:
+            entry["non_owned_summary"] = {
+                "commit_count": row.commit_count,
+                "active_days": row.active_days,
+                "first_commit_date": row.first_commit_at.date().isoformat()
+                    if row.first_commit_at else None,
+                "last_commit_date": row.last_commit_at.date().isoformat()
+                    if row.last_commit_at else None,
+            }
+        repos.append(entry)
+
 
     logger.info(
         "get_stats_repos: cache MISS for user_id=%s — %d active repos",
