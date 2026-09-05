@@ -11,15 +11,18 @@
 }
 
 :root {
-  --bg-base:        #0d1117;
+  --bg-base:        #0a0a0a;
   --bg-surface:     #161b22;
+  --bg-card:        #111318;
+  --border-card:    #1f2937;
+  --font-mono:      'JetBrains Mono', 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   --bg-glass:       rgba(255, 255, 255, 0.04);
   --bg-glass-hover: rgba(255, 255, 255, 0.07);
   --border-glass:   rgba(255, 255, 255, 0.08);
 
-  --accent:         #2dd4bf;   /* teal */
-  --accent-dim:     rgba(45, 212, 191, 0.15);
-  --accent-glow:    rgba(45, 212, 191, 0.35);
+  --accent:         #22c55e;   /* green */
+  --accent-dim:     rgba(34, 197, 94, 0.15);
+  --accent-glow:    rgba(34, 197, 94, 0.35);
 
   --text-primary:   #e6edf3;
   --text-secondary: #8b949e;
@@ -253,91 +256,150 @@ html, body {
   width: 100%;
 }
 
-/* ── Stats grid ──────────────────────────────────────────────── */
-.stats-grid {
+/* ── Top stats row ───────────────────────────────────────────── */
+.top-stats-row {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 16px;
   margin-bottom: 28px;
 }
 
-/* chart card spans full width on its row */
-.stat-card--chart {
-  grid-column: 1 / -1;
+@media (max-width: 900px) {
+  .top-stats-row {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
 }
 
-.stat-card {
-  background: var(--bg-glass);
-  border: 1px solid var(--border-glass);
-  border-radius: var(--radius-card);
-  padding: 28px;
-  backdrop-filter: blur(12px);
-  box-shadow: var(--shadow-card);
+/* Base card: dark theme #111318, 1px border #1f2937, rounded 8px, padding 24px */
+.top-stats-row .stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 8px;
+  padding: 24px;
+  box-shadow: none;
+  backdrop-filter: none;
+  transition: border-color 0.2s ease;
+}
+
+.top-stats-row .stat-card:hover {
+  background: var(--bg-card);
+  border-color: #374151;
+  transform: none;
+}
+
+/* Card 1: Streak Card (~40% width, split into two halves) */
+.stat-card--streak {
   display: flex;
+  flex-direction: row;
   align-items: center;
   gap: 20px;
-  transition: background var(--transition), transform var(--transition);
 }
 
-.stat-card:hover {
-  background: var(--bg-glass-hover);
-  transform: translateY(-2px);
-}
-
-.stat-card--chart {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 16px;
-}
-
-.card-header-row {
+.streak-gauge-col {
+  flex: 0 0 100px;
+  width: 100px;
+  height: 100px;
   display: flex;
   align-items: center;
-  gap: 16px;
+  justify-content: center;
 }
 
-.card-header-row .stat-label,
-.card-header-row .stat-unit {
+.streak-gauge-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.gauge-track {
+  stroke: #f9fafb;
+  opacity: 0.2;
+  transition: stroke 0.3s ease;
+}
+
+.gauge-fill {
+  transition: stroke-dasharray 0.6s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+}
+
+.streak-info-col {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
 }
 
-.card-icon {
-  font-size: 2rem;
-  line-height: 1;
-  flex-shrink: 0;
-}
-
-.card-body {
+.streak-stat-pair {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.stat-number {
-  font-size: 2.6rem;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  line-height: 1;
-  color: var(--text-primary);
+.streak-divider {
+  height: 1px;
+  background-color: #1f2937;
+  margin: 12px 0;
+  width: 100%;
 }
 
-.stat-number--inline {
-  font-size: 2rem;
-  margin-left: auto;
+.stat-number-wrap {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
 }
 
-.stat-label {
-  font-size: 0.8rem;
+/* Typography for numbers and labels (monospace / technical) */
+.top-stats-row .stat-label {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-secondary);
+  letter-spacing: 0.08em;
+  color: #6b7280;
+  line-height: 1.2;
 }
 
-.stat-unit {
+.top-stats-row .stat-number {
+  font-family: var(--font-mono);
+  font-size: 2.25rem;
+  font-weight: 700;
+  color: #ffffff;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.streak-stat-pair .stat-number {
+  font-size: 1.75rem;
+}
+
+.stat-suffix {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #6b7280;
+  margin-left: 2px;
+}
+
+/* Cards 2 & 3: Standard Cards */
+.stat-card--standard {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.stat-card-inner {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+  height: 100%;
+}
+
+.stat-card-subtext {
+  font-family: var(--font-mono);
   font-size: 0.75rem;
-  color: var(--text-muted);
-  margin-top: 2px;
+  color: #6b7280;
+  line-height: 1.2;
 }
 
 /* ── Chart ───────────────────────────────────────────────────── */
@@ -500,10 +562,33 @@ html, body {
 /* Intensity levels — 0 = no activity, 4 = highest */
 .hc-empty { background: transparent; }
 .hc-0     { background: rgba(255, 255, 255, 0.06); }
-.hc-1     { background: rgba(45, 212, 191, 0.25); }
-.hc-2     { background: rgba(45, 212, 191, 0.50); }
-.hc-3     { background: rgba(45, 212, 191, 0.75); }
-.hc-4     { background: rgba(45, 212, 191, 1.00); }
+.hc-1     { background: rgba(34, 197, 94, 0.25); }
+.hc-2     { background: rgba(34, 197, 94, 0.50); }
+.hc-3     { background: rgba(34, 197, 94, 0.75); }
+.hc-4     { background: rgba(34, 197, 94, 1.00); }
+
+/* Heatmap hover tooltip matching GitHub's contribution graph */
+.heatmap-tooltip {
+  position: fixed;
+  z-index: 1000;
+  pointer-events: none;
+  background: #161b22;
+  color: #c9d1d9;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.75rem;
+  font-family: var(--font-mono), 'Inter', sans-serif;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+  white-space: nowrap;
+  transform: translateX(-50%);
+  transition: opacity 0.1s ease;
+}
+
+.heatmap-tooltip strong {
+  color: #ffffff;
+  font-weight: 600;
+}
 
 .heatmap-legend {
   display: flex;

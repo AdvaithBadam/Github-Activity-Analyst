@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/src/style.css" />
@@ -80,51 +80,72 @@
       </header>
 
       <main class="dashboard-main">
-        <!-- Stat cards grid -->
-        <div class="stats-grid" role="list" aria-label="Activity statistics">
+        <!-- Top stat cards row -->
+        <div class="top-stats-row" role="region" aria-label="Activity summary statistics">
 
-          <!-- Current streak -->
-          <article class="stat-card" role="listitem" id="card-current-streak">
-            <div class="card-icon card-icon--flame" aria-hidden="true">🔥</div>
-            <div class="card-body">
-              <div id="current-streak-value" class="stat-number">—</div>
-              <div class="stat-label">Current streak</div>
-              <div class="stat-unit">days</div>
+          <!-- Card 1: Streak Arc Gauge & Stats (widest, ~40% width) -->
+          <article class="stat-card stat-card--streak" id="card-streak">
+            <div class="streak-gauge-col">
+              <svg class="streak-gauge-svg" viewBox="0 0 100 100" aria-label="Streak comparison gauge">
+                <circle
+                  class="gauge-track"
+                  cx="50"
+                  cy="50"
+                  r="38"
+                  fill="none"
+                  stroke="#f9fafb"
+                  stroke-width="8"
+                  stroke-linecap="round"
+                  stroke-dasharray="179.07 238.76"
+                  transform="rotate(135 50 50)"
+                />
+                <circle
+                  id="streak-gauge-arc"
+                  class="gauge-fill"
+                  cx="50"
+                  cy="50"
+                  r="38"
+                  fill="none"
+                  stroke="#22c55e"
+                  stroke-width="8"
+                  stroke-linecap="round"
+                  stroke-dasharray="0 238.76"
+                  transform="rotate(135 50 50)"
+                />
+              </svg>
             </div>
-          </article>
-
-          <!-- Longest streak -->
-          <article class="stat-card" role="listitem" id="card-longest-streak">
-            <div class="card-icon card-icon--trophy" aria-hidden="true">🏆</div>
-            <div class="card-body">
-              <div id="longest-streak-value" class="stat-number">—</div>
-              <div class="stat-label">Longest streak</div>
-              <div class="stat-unit">days</div>
-            </div>
-          </article>
-
-          <!-- Weekly velocity (bar chart) -->
-          <article class="stat-card stat-card--chart" role="listitem" id="card-weekly-velocity">
-            <div class="card-header-row">
-              <div class="card-icon card-icon--bolt" aria-hidden="true">⚡</div>
-              <div>
-                <div class="stat-label">Weekly commits</div>
-                <div class="stat-unit">7-day total</div>
+            <div class="streak-info-col">
+              <div class="streak-stat-pair">
+                <span class="stat-label">CURRENT STREAK</span>
+                <div class="stat-number-wrap">
+                  <span id="current-streak-value" class="stat-number">0</span><span class="stat-suffix">d</span>
+                </div>
               </div>
-              <div id="weekly-velocity-value" class="stat-number stat-number--inline">—</div>
-            </div>
-            <div class="chart-container">
-              <canvas id="weekly-chart" aria-label="Weekly commit count bar chart"></canvas>
+              <div class="streak-divider"></div>
+              <div class="streak-stat-pair">
+                <span class="stat-label">LONGEST STREAK</span>
+                <div class="stat-number-wrap">
+                  <span id="longest-streak-value" class="stat-number">0</span><span class="stat-suffix">d</span>
+                </div>
+              </div>
             </div>
           </article>
 
-          <!-- Active repos -->
-          <article class="stat-card" role="listitem" id="card-active-repos">
-            <div class="card-icon card-icon--repo" aria-hidden="true">📁</div>
-            <div class="card-body">
-              <div id="active-repos-value" class="stat-number">—</div>
-              <div class="stat-label">Active repos</div>
-              <div class="stat-unit">last 14 days</div>
+          <!-- Card 2: Current week's contributions -->
+          <article class="stat-card stat-card--standard" id="card-weekly-velocity">
+            <div class="stat-card-inner">
+              <span class="stat-label">CURRENT WEEK'S CONTRIBUTIONS</span>
+              <div id="weekly-velocity-value" class="stat-number">0</div>
+              <span class="stat-subtext">Last 7 days</span>
+            </div>
+          </article>
+
+          <!-- Card 3: Active repositories -->
+          <article class="stat-card stat-card--standard" id="card-active-repos">
+            <div class="stat-card-inner">
+              <span class="stat-label">ACTIVE REPOS</span>
+              <div id="active-repos-value" class="stat-number">0</div>
+              <span class="stat-subtext">With commits in last 14 days</span>
             </div>
           </article>
         </div>
@@ -152,6 +173,7 @@
           <h2 class="panel-title">Contribution Heatmap <span class="panel-subtitle">last 365 days</span></h2>
           <div id="heatmap-error" class="panel-error hidden" role="alert"></div>
           <div id="heatmap-grid" class="heatmap-grid" aria-label="Daily commit counts"></div>
+          <div id="heatmap-tooltip" class="heatmap-tooltip hidden" role="tooltip"></div>
           <div class="heatmap-legend">
             <span class="legend-label">Less</span>
             <span class="heatmap-cell hc-0"></span>

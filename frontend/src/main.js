@@ -53,6 +53,7 @@ const usernameDisplay  = document.getElementById('username-display');
 
 const currentStreakEl  = document.getElementById('current-streak-value');
 const longestStreakEl  = document.getElementById('longest-streak-value');
+const streakGaugeArc   = document.getElementById('streak-gauge-arc');
 const weeklyVelocityEl = document.getElementById('weekly-velocity-value');
 const activeReposEl    = document.getElementById('active-repos-value');
 const lastUpdatedEl    = document.getElementById('last-updated');
@@ -72,7 +73,6 @@ const patternError     = document.getElementById('pattern-error');
 
 // ── Chart instances (created once, updated on each stats fetch) ────────────────
 
-let weeklyChart = null;
 let reposChart  = null;
 let hourChart   = null;
 let dowChart    = null;
@@ -88,7 +88,7 @@ function baseBarOptions(extraScaleY = {}) {
       tooltip: {
         backgroundColor: 'rgba(22, 27, 34, 0.95)',
         titleColor: '#e6edf3',
-        bodyColor: '#2dd4bf',
+        bodyColor: '#22c55e',
         borderColor: 'rgba(255,255,255,0.08)',
         borderWidth: 1,
       },
@@ -96,14 +96,14 @@ function baseBarOptions(extraScaleY = {}) {
     scales: {
       x: {
         grid:  { color: 'rgba(255,255,255,0.05)' },
-        ticks: { color: '#8b949e', font: { family: 'Inter', size: 11 } },
+        ticks: { color: '#8b949e', font: { family: 'JetBrains Mono', size: 11 } },
       },
       y: {
         beginAtZero: true,
         grid:  { color: 'rgba(255,255,255,0.05)' },
         ticks: {
           color: '#8b949e',
-          font: { family: 'Inter', size: 11 },
+          font: { family: 'JetBrains Mono', size: 11 },
           precision: 0,
           stepSize: 1,
         },
@@ -114,40 +114,39 @@ function baseBarOptions(extraScaleY = {}) {
   };
 }
 
-// ── Weekly velocity chart (existing) ───────────────────────────────────────────
+// ── Streak gauge renderer ───────────────────────────────────────────────────────
 
-function buildWeeklyChart(velocity) {
-  const ctx = document.getElementById('weekly-chart').getContext('2d');
-  const data = {
-    labels: ['Last 7 days'],
-    datasets: [{
-      label: 'Commits',
-      data: [velocity],
-      backgroundColor: 'rgba(45, 212, 191, 0.7)',
-      borderColor: 'rgba(45, 212, 191, 1)',
-      borderWidth: 2,
-      borderRadius: 8,
-      hoverBackgroundColor: 'rgba(45, 212, 191, 0.9)',
-    }],
-  };
-  const options = {
-    ...baseBarOptions(),
-    plugins: {
-      ...baseBarOptions().plugins,
-      tooltip: {
-        ...baseBarOptions().plugins.tooltip,
-        callbacks: {
-          label: (c) => ` ${c.raw} commits in the last 7 days`,
-        },
-      },
-    },
-  };
+/**
+ * Update the circular/arc gauge SVG.
+ * - filled portion shows current_streak against longest_streak as full arc background
+ * - fillPercentage = current_streak / longest_streak (capped at 1.0)
+ * - edge case: longest_streak === 0 shows empty arc without divide-by-zero or NaN
+ * - edge case: current_streak === 0 renders visibly empty/near-empty green arc without breaking
+ */
+function updateStreakGauge(currentStreak, longestStreak) {
+  if (!streakGaugeArc) return;
 
-  if (weeklyChart) {
-    weeklyChart.data.datasets[0].data = [velocity];
-    weeklyChart.update();
+  const totalArcLength = 179.07; // 270-degree arc on r=38
+  const circumference = 238.76;
+
+  // Handle edge case: longest_streak === 0 -> empty arc
+  if (!longestStreak || longestStreak <= 0) {
+    streakGaugeArc.style.opacity = '0';
+    streakGaugeArc.setAttribute('stroke-dasharray', `0 ${circumference}`);
+    return;
+  }
+
+  // Cap at 100% if current somehow exceeds longest
+  const fillRatio = Math.min(1, Math.max(0, currentStreak / longestStreak));
+
+  // Handle edge case: current_streak === 0 -> visibly empty / near-empty arc
+  if (currentStreak === 0 || fillRatio <= 0) {
+    streakGaugeArc.style.opacity = '0.35';
+    streakGaugeArc.setAttribute('stroke-dasharray', `0.001 ${circumference}`);
   } else {
-    weeklyChart = new Chart(ctx, { type: 'bar', data, options });
+    streakGaugeArc.style.opacity = '1';
+    const filledLength = (totalArcLength * fillRatio).toFixed(2);
+    streakGaugeArc.setAttribute('stroke-dasharray', `${filledLength} ${circumference}`);
   }
 }
 
@@ -165,21 +164,25 @@ function heatLevel(count) {
   return 4;
 }
 
+function formatHeatmapDate(isoDateStr) {
+  if (!isoDateStr) return '';
+  const parts = isoDateStr.split('-');
+  if (parts.length !== 3) return isoDateStr;
+  const year = parts[0];
+  const monthIdx = parseInt(parts[1], 10) - 1;
+  const day = parseInt(parts[2], 10);
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${monthNames[monthIdx]} ${day}, ${year}`;
+}
+
 function renderHeatmap(days) {
   heatmapGrid.innerHTML = '';
 
-  // days is already 365 entries oldest-first from the backend.
-  // Build a map for O(1) lookup.
-  const byDate = {};
-  for (const d of days) byDate[d.date] = d.commit_count;
+  if (!days || days.length === 0) return;
 
-  // We want columns = weeks (Mon → Sun vertically).
-  // Find the ISO date of the first day's Monday so grid aligns correctly.
   const firstDate = new Date(days[0].date + 'T00:00:00Z');
-  // dayOfWeek: 0=Sun,1=Mon…6=Sat → convert to Mon=0..Sun=6
   const firstDow = (firstDate.getUTCDay() + 6) % 7; // 0=Mon
 
-  // Prepend `firstDow` blank spacer cells so day-0 lands in the right row.
   for (let i = 0; i < firstDow; i++) {
     const spacer = document.createElement('span');
     spacer.className = 'heatmap-cell hc-empty';
@@ -190,45 +193,140 @@ function renderHeatmap(days) {
     const count = d.commit_count;
     const cell  = document.createElement('span');
     cell.className = `heatmap-cell hc-${heatLevel(count)}`;
-    cell.title = `${d.date}: ${count} commit${count !== 1 ? 's' : ''}`;
+    cell.dataset.date = d.date;
+    cell.dataset.count = count;
+
+    const formattedDate = formatHeatmapDate(d.date);
+    const countText = count === 0
+      ? 'No contributions'
+      : `${count} contribution${count !== 1 ? 's' : ''}`;
+
+    cell.title = `${countText} on ${formattedDate}`;
     cell.setAttribute('aria-label', cell.title);
     heatmapGrid.appendChild(cell);
+  }
+
+  // Bind GitHub-style hover tooltip to heatmap cells
+  if (!heatmapGrid.dataset.tooltipBound) {
+    heatmapGrid.dataset.tooltipBound = 'true';
+
+    heatmapGrid.addEventListener('mouseover', (e) => {
+      const cell = e.target.closest('.heatmap-cell');
+      const tooltipEl = document.getElementById('heatmap-tooltip');
+      if (!cell || !cell.dataset.date) {
+        if (tooltipEl) tooltipEl.classList.add('hidden');
+        return;
+      }
+
+      const count = parseInt(cell.dataset.count, 10);
+      const dateStr = cell.dataset.date;
+      const formattedDate = formatHeatmapDate(dateStr);
+      const countText = count === 0
+        ? 'No contributions'
+        : `${count} contribution${count !== 1 ? 's' : ''}`;
+
+      if (tooltipEl) {
+        tooltipEl.innerHTML = `<strong>${countText}</strong> on ${formattedDate}`;
+        tooltipEl.classList.remove('hidden');
+      }
+    });
+
+    heatmapGrid.addEventListener('mousemove', (e) => {
+      const tooltipEl = document.getElementById('heatmap-tooltip');
+      if (!tooltipEl || tooltipEl.classList.contains('hidden')) return;
+
+      const left = e.clientX;
+      const top  = e.clientY - 38;
+
+      tooltipEl.style.left = `${left}px`;
+      tooltipEl.style.top  = `${top}px`;
+    });
+
+    heatmapGrid.addEventListener('mouseleave', () => {
+      const tooltipEl = document.getElementById('heatmap-tooltip');
+      if (tooltipEl) tooltipEl.classList.add('hidden');
+    });
   }
 }
 
 // ── Per-repo chart ──────────────────────────────────────────────────────────────
 
 function renderReposChart(repos) {
-  const hasData = repos.length > 0;
+  // Sort repos by commit_count descending & take top 5
+  const sorted = [...repos].sort((a, b) => (b.commit_count ?? 0) - (a.commit_count ?? 0));
+  const top5 = sorted.slice(0, 5);
+
+  const hasData = top5.length > 0 && top5.some((r) => r.commit_count > 0);
 
   reposEmpty.classList.toggle('hidden', hasData);
   document.querySelector('.chart-container--repos').classList.toggle('hidden', !hasData);
 
   if (!hasData) return;
 
-  const labels = repos.map((r) => r.repo_name);
-  const values = repos.map((r) => r.commit_count);
+  const MAX_LABEL_LEN = 18;
+  const fullNames = top5.map((r) => r.repo_name);
+  const truncatedLabels = top5.map((r) =>
+    r.repo_name.length > MAX_LABEL_LEN
+      ? r.repo_name.slice(0, MAX_LABEL_LEN - 1) + '…'
+      : r.repo_name
+  );
+  const values = top5.map((r) => r.commit_count);
   const ctx    = document.getElementById('repos-chart').getContext('2d');
 
   const dataset = {
     label: 'Commits',
     data: values,
-    backgroundColor: 'rgba(45, 212, 191, 0.65)',
-    borderColor: 'rgba(45, 212, 191, 1)',
+    backgroundColor: 'rgba(34, 197, 94, 0.65)',
+    borderColor: 'rgba(34, 197, 94, 1)',
     borderWidth: 1,
     borderRadius: 6,
-    hoverBackgroundColor: 'rgba(45, 212, 191, 0.85)',
+    hoverBackgroundColor: 'rgba(34, 197, 94, 0.85)',
+    categoryPercentage: 0.55,
+    barPercentage: 0.75,
+    maxBarThickness: 56,
+  };
+
+  const chartOptions = {
+    ...baseBarOptions(),
+    plugins: {
+      ...baseBarOptions().plugins,
+      tooltip: {
+        ...baseBarOptions().plugins.tooltip,
+        callbacks: {
+          title: (items) => {
+            if (!items.length) return '';
+            const idx = items[0].dataIndex;
+            return fullNames[idx] ?? '';
+          },
+          label: (c) => ` ${c.raw} commit${c.raw !== 1 ? 's' : ''} in last 30 days`,
+        },
+      },
+    },
+    scales: {
+      ...baseBarOptions().scales,
+      x: {
+        grid: { color: 'rgba(255,255,255,0.05)' },
+        ticks: {
+          color: '#8b949e',
+          font: { family: 'JetBrains Mono', size: 11 },
+          maxRotation: 0,
+          minRotation: 0,
+          autoSkip: false,
+        },
+      },
+    },
   };
 
   if (reposChart) {
-    reposChart.data.labels = labels;
-    reposChart.data.datasets[0].data = values;
+    reposChart.data.labels = truncatedLabels;
+    reposChart.data.datasets[0] = dataset;
+    reposChart.options = chartOptions;
     reposChart.update();
   } else {
     reposChart = new Chart(ctx, {
       type: 'bar',
-      data: { labels, datasets: [dataset] },
-      options: baseBarOptions(),
+      data: { labels: truncatedLabels, datasets: [dataset] },
+      options: chartOptions,
     });
   }
 }
@@ -236,7 +334,7 @@ function renderReposChart(repos) {
 // ── Activity pattern charts ──────────────────────────────────────────────────────
 
 function renderPatternCharts(pattern) {
-  // Hour chart
+  // Hour chart (green color palette)
   const hourLabels  = pattern.by_hour_utc.map((h) => String(h.hour).padStart(2, '0'));
   const hourValues  = pattern.by_hour_utc.map((h) => h.commit_count);
   const hourCtx     = document.getElementById('hour-chart').getContext('2d');
@@ -253,18 +351,18 @@ function renderPatternCharts(pattern) {
         datasets: [{
           label: 'Commits',
           data: hourValues,
-          backgroundColor: 'rgba(99, 179, 237, 0.65)',
-          borderColor: 'rgba(99, 179, 237, 1)',
+          backgroundColor: 'rgba(34, 197, 94, 0.65)',
+          borderColor: 'rgba(34, 197, 94, 1)',
           borderWidth: 1,
           borderRadius: 4,
-          hoverBackgroundColor: 'rgba(99, 179, 237, 0.85)',
+          hoverBackgroundColor: 'rgba(34, 197, 94, 0.85)',
         }],
       },
       options: baseBarOptions(),
     });
   }
 
-  // Day-of-week chart
+  // Day-of-week chart (green color palette)
   const dowLabels = pattern.by_day_of_week.map((d) => d.day.slice(0, 3));
   const dowValues = pattern.by_day_of_week.map((d) => d.commit_count);
   const dowCtx    = document.getElementById('dow-chart').getContext('2d');
@@ -281,11 +379,11 @@ function renderPatternCharts(pattern) {
         datasets: [{
           label: 'Commits',
           data: dowValues,
-          backgroundColor: 'rgba(167, 139, 250, 0.65)',
-          borderColor: 'rgba(167, 139, 250, 1)',
+          backgroundColor: 'rgba(34, 197, 94, 0.65)',
+          borderColor: 'rgba(34, 197, 94, 1)',
           borderWidth: 1,
           borderRadius: 4,
-          hoverBackgroundColor: 'rgba(167, 139, 250, 0.85)',
+          hoverBackgroundColor: 'rgba(34, 197, 94, 0.85)',
         }],
       },
       options: baseBarOptions(),
@@ -358,19 +456,23 @@ function renderSummary(data) {
   const wv = data.weekly_velocity ?? 0;
   const ar = data.active_repos    ?? 0;
 
-  currentStreakEl.textContent  = cs;
-  longestStreakEl.textContent  = ls;
-  weeklyVelocityEl.textContent = wv;
-  activeReposEl.textContent    = ar;
+  if (currentStreakEl)  currentStreakEl.textContent  = cs;
+  if (longestStreakEl)  longestStreakEl.textContent  = ls;
+  if (weeklyVelocityEl) weeklyVelocityEl.textContent = wv;
+  if (activeReposEl)    activeReposEl.textContent    = ar;
 
-  buildWeeklyChart(wv);
+  updateStreakGauge(cs, ls);
 
-  lastUpdatedEl.textContent = data.computed_at_utc
-    ? formatUpdatedAt(data.computed_at_utc)
-    : '';
+  if (lastUpdatedEl) {
+    lastUpdatedEl.textContent = data.computed_at_utc
+      ? formatUpdatedAt(data.computed_at_utc)
+      : '';
+  }
 
   const allZero = cs === 0 && ls === 0 && wv === 0 && ar === 0;
-  zeroDataPrompt.classList.toggle('hidden', !allZero);
+  if (zeroDataPrompt) {
+    zeroDataPrompt.classList.toggle('hidden', !allZero);
+  }
 }
 
 // ── API helpers ──────────────────────────────────────────────────────────────────
