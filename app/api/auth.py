@@ -146,7 +146,7 @@ async def github_callback(
         key="access_token",
         value=jwt_token,
         httponly=True,
-        secure=False,       # False for http://localhost; set True in production
+        secure=True,       
         samesite="lax",
         max_age=settings.JWT_EXPIRE_MINUTES * 60,  # max_age is in seconds
     )
