@@ -46,7 +46,7 @@ async def github_login() -> RedirectResponse:
         key="oauth_state",
         value=state,
         httponly=True,
-        secure=False,       # False for http://localhost; set True in production
+        secure=True,       
         samesite="lax",
     )
     return response
