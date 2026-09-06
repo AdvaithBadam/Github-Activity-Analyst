@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
 
     # ── Frontend ─────────────────────────────────────────────────
+    FRONTEND_REDIRECT_URL: str = "http://localhost:5173"
     FRONTEND_URL: str = "http://localhost:5173" # comma-separated list of allowed origins
 
 
