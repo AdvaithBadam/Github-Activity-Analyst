@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Cookie
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 
@@ -23,8 +23,7 @@ from app.utils.encryption import encrypt_token
 from app.utils.jwt import create_access_token
 from app.dependencies import get_current_user
 
-# TODO: replace with your actual existing Redis client import — e.g.:
-# from app.services.cache import redis_client
+
 from app.cache import get_redis_client
 
 logger = logging.getLogger(__name__)
@@ -68,6 +67,7 @@ async def github_login() -> RedirectResponse:
 async def github_callback(
     code: str = Query(..., description="Authorization code from GitHub"),
     state: str = Query(..., description="OAuth state for CSRF verification"),
+    access_token_cookie: str | None = Cookie(default=None, alias="access_token"),
 ):
     """Handle the OAuth callback from GitHub.
 
@@ -78,7 +78,7 @@ async def github_callback(
     4. Upsert the User row in the database with the encrypted token.
     5. Issue a JWT session cookie and redirect to the frontend.
     """
-        # ── Step 0: CSRF validation via Redis, not a cookie ──────────
+           # ── Step 0: CSRF validation via Redis, not a cookie ──────────
     state_key = f"oauth_state:{state}"
 
     try:
@@ -90,6 +90,18 @@ async def github_callback(
         ) from exc
 
     if not state_exists:
+        # State missing — could be a genuine CSRF attempt, OR a duplicate/replayed
+        # request for a callback that already succeeded once (state is one-time-use
+        # and gets deleted on first success). If the user already has a valid
+        # access_token cookie, this is almost certainly the latter — just send them
+        # to the frontend instead of erroring.
+        if access_token_cookie:
+            logger.info(
+                "OAuth callback replay detected (state already consumed) — "
+                "user already has a valid session, redirecting to frontend."
+            )
+            return RedirectResponse(url=settings.FRONTEND_URL, status_code=302)
+
         raise HTTPException(
             status_code=400,
             detail="Invalid or missing OAuth state — possible CSRF attempt",
