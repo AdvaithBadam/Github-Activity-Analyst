@@ -100,7 +100,7 @@ async def github_callback(
                 "OAuth callback replay detected (state already consumed) — "
                 "user already has a valid session, redirecting to frontend."
             )
-            return RedirectResponse(url=settings.FRONTEND_URL, status_code=302)
+            return RedirectResponse(url=settings.FRONTEND_REDIRECT_URL, status_code=302)
 
         raise HTTPException(
             status_code=400,
@@ -179,7 +179,7 @@ async def github_callback(
     # ── Step 4: issue JWT & respond ───────────────────────────────
     jwt_token = create_access_token(user.id, github_username)
 
-    response = RedirectResponse(url=settings.FRONTEND_URL, status_code=302)
+    response = RedirectResponse(url=settings.FRONTEND_REDIRECT_URL, status_code=302)
     response.set_cookie(
         key="access_token",
         value=jwt_token,
