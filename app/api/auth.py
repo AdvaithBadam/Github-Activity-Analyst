@@ -25,7 +25,7 @@ from app.dependencies import get_current_user
 
 # TODO: replace with your actual existing Redis client import — e.g.:
 # from app.services.cache import redis_client
-from app.services.cache import redis_client
+from app.cache import get_redis_client
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth/github", tags=["auth"])
