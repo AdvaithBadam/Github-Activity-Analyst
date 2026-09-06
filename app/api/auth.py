@@ -6,12 +6,13 @@ Flow:
        upsert User row, issue JWT session cookie, return confirmation JSON
 """
 
+import logging
 import secrets
 from datetime import datetime, timezone
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 
@@ -22,12 +23,18 @@ from app.utils.encryption import encrypt_token
 from app.utils.jwt import create_access_token
 from app.dependencies import get_current_user
 
+# TODO: replace with your actual existing Redis client import — e.g.:
+# from app.services.cache import redis_client
+from app.services.cache import redis_client
+
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth/github", tags=["auth"])
 
 # ── Constants ────────────────────────────────────────────────────
 GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
 GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token"
 GITHUB_USER_URL = "https://api.github.com/user"
+OAUTH_STATE_TTL_SECONDS = 600  # 10 minutes — state must be used within this window
 
 
 @router.get("/login")
@@ -35,43 +42,64 @@ async def github_login() -> RedirectResponse:
     """Kick off the OAuth flow by redirecting to GitHub's authorize page."""
     state = secrets.token_urlsafe(32)
 
+    # Store state server-side (Redis) instead of in a cookie.
+    # This avoids cross-site cookie policy issues entirely, since no
+    # cookie needs to survive the redirect to github.com and back.
+    try:
+        await get_redis_client().set(
+            f"oauth_state:{state}", "1", ex=OAUTH_STATE_TTL_SECONDS
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to initialize OAuth flow — server storage unavailable.",
+        ) from exc
+
     params = {
         "client_id": settings.GITHUB_CLIENT_ID,
         "redirect_uri": settings.GITHUB_REDIRECT_URI,
         "scope": "public_repo,read:user",
         "state": state,
     }
-    response = RedirectResponse(url=f"{GITHUB_AUTHORIZE_URL}?{urlencode(params)}")
-    response.set_cookie(
-        key="oauth_state",
-        value=state,
-        httponly=True,
-        secure=True,       
-        samesite="none",
-    )
-    return response
+    return RedirectResponse(url=f"{GITHUB_AUTHORIZE_URL}?{urlencode(params)}")
 
 
 @router.get("/callback")
 async def github_callback(
     code: str = Query(..., description="Authorization code from GitHub"),
     state: str = Query(..., description="OAuth state for CSRF verification"),
-    oauth_state: str | None = Cookie(default=None),
 ):
     """Handle the OAuth callback from GitHub.
 
-    1. Validate the ``state`` param against the ``oauth_state`` cookie (CSRF check).
+    1. Validate ``state`` exists in Redis (CSRF check) — consume it (delete)
+       so it can't be replayed.
     2. Exchange the ``code`` for an access token.
     3. Use that token to fetch the authenticated user's profile.
     4. Upsert the User row in the database with the encrypted token.
-    5. Issue a JWT session cookie and return a confirmation JSON response.
+    5. Issue a JWT session cookie and redirect to the frontend.
     """
-    # ── Step 0: CSRF validation ──────────────────────────────────
-    if not oauth_state or oauth_state != state:
+        # ── Step 0: CSRF validation via Redis, not a cookie ──────────
+    state_key = f"oauth_state:{state}"
+
+    try:
+        state_exists = await get_redis_client().get(state_key)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to validate OAuth state — server storage unavailable.",
+        ) from exc
+
+    if not state_exists:
         raise HTTPException(
             status_code=400,
             detail="Invalid or missing OAuth state — possible CSRF attempt",
         )
+
+    # Consume immediately — one-time use, prevents replay
+    try:
+        await get_redis_client().delete(state_key)
+    except Exception as exc:
+        logger.warning("Failed to delete consumed oauth_state key %s: %s", state_key, exc)
 
     async with httpx.AsyncClient() as client:
         # ── Step 1: exchange code → access_token ─────────────────
@@ -123,12 +151,10 @@ async def github_callback(
         user = result.scalar_one_or_none()
 
         if user is not None:
-            # Existing user — update token (always) and created_at (if changed)
             user.github_access_token_encrypted = encrypted_token
             if user.github_created_at != github_created_at:
                 user.github_created_at = github_created_at
         else:
-            # New user
             user = User(
                 github_username=github_username,
                 github_created_at=github_created_at,
@@ -146,11 +172,10 @@ async def github_callback(
         key="access_token",
         value=jwt_token,
         httponly=True,
-        secure=True,       
+        secure=True,
         samesite="lax",
-        max_age=settings.JWT_EXPIRE_MINUTES * 60,  # max_age is in seconds
+        max_age=settings.JWT_EXPIRE_MINUTES * 60,
     )
-    response.delete_cookie("oauth_state")
     return response
 
 
