@@ -198,25 +198,3 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # ──────────────────────────────────────────────────────────────────────────────
-  # JOB 3 — deploy
-  # Runs ONLY on push to main, after both test and build pass.
-  # Uses Railway CLI (railway up --ci) with a project token.
-  # ──────────────────────────────────────────────────────────────────────────────
-  deploy:
-    name: Deploy to Railway
-    runs-on: ubuntu-latest
-    needs: [test, build]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Railway CLI
-        run: npm install -g @railway/cli
-
-      - name: Deploy
-        run: railway up --ci --service Github-Activity-Analyst
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}

@@ -38,7 +38,7 @@ Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip);
 
 // ── Config ─────────────────────────────────────────────────────────────────────
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL ?? '').replace(/\/+$/, '');
 
 if (!BACKEND_URL) {
   throw new Error('VITE_BACKEND_URL is not set. Add it to frontend/.env');
