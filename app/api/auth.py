@@ -3,7 +3,7 @@
 Flow:
     1. GET /auth/github/login   → redirect user to GitHub authorize page
     2. GET /auth/github/callback → exchange code for token, fetch profile,
-       upsert User row, issue JWT session cookie, return confirmation JSON
+       upsert User row, issue JWT, redirect to frontend with token query param
 """
 
 import logging
@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query, Cookie
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 
@@ -67,7 +67,6 @@ async def github_login() -> RedirectResponse:
 async def github_callback(
     code: str = Query(..., description="Authorization code from GitHub"),
     state: str = Query(..., description="OAuth state for CSRF verification"),
-    access_token_cookie: str | None = Cookie(default=None, alias="access_token"),
 ):
     """Handle the OAuth callback from GitHub.
 
@@ -76,13 +75,13 @@ async def github_callback(
     2. Exchange the ``code`` for an access token.
     3. Use that token to fetch the authenticated user's profile.
     4. Upsert the User row in the database with the encrypted token.
-    5. Issue a JWT session cookie and redirect to the frontend.
+    5. Issue a JWT and redirect to the frontend with the token as a query param.
     """
            # ── Step 0: CSRF validation via Redis, not a cookie ──────────
     state_key = f"oauth_state:{state}"
 
     try:
-        state_exists = await get_redis_client().get(state_key)
+        state_exists = await get_redis_client().getdel(state_key)
     except Exception as exc:
         raise HTTPException(
             status_code=500,
@@ -90,18 +89,6 @@ async def github_callback(
         ) from exc
 
     if not state_exists:
-        # State missing — could be a genuine CSRF attempt, OR a duplicate/replayed
-        # request for a callback that already succeeded once (state is one-time-use
-        # and gets deleted on first success). If the user already has a valid
-        # access_token cookie, this is almost certainly the latter — just send them
-        # to the frontend instead of erroring.
-        if access_token_cookie:
-            logger.info(
-                "OAuth callback replay detected (state already consumed) — "
-                "user already has a valid session, redirecting to frontend."
-            )
-            return RedirectResponse(url=settings.FRONTEND_REDIRECT_URL, status_code=302)
-
         raise HTTPException(
             status_code=400,
             detail="Invalid or missing OAuth state — possible CSRF attempt",
@@ -176,19 +163,11 @@ async def github_callback(
 
         await session.commit()
 
-    # ── Step 4: issue JWT & respond ───────────────────────────────
+    # ── Step 4: issue JWT & redirect to frontend with token ───────
     jwt_token = create_access_token(user.id, github_username)
 
-    response = RedirectResponse(url=settings.FRONTEND_REDIRECT_URL, status_code=302)
-    response.set_cookie(
-        key="access_token",
-        value=jwt_token,
-        httponly=True,
-        secure=True,
-        samesite="lax",
-        max_age=settings.JWT_EXPIRE_MINUTES * 60,
-    )
-    return response
+    redirect_url = f"{settings.FRONTEND_REDIRECT_URL}?{urlencode({'token': jwt_token})}"
+    return RedirectResponse(url=redirect_url, status_code=302)
 
 
 @router.get("/me")

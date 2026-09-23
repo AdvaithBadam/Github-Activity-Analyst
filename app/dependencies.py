@@ -1,7 +1,7 @@
 """FastAPI dependencies for request-scoped concerns (auth, DB sessions, etc.)."""
 
 import jwt
-from fastapi import Cookie, HTTPException
+from fastapi import Header, HTTPException
 from sqlalchemy import select
 
 from app.db import async_session
@@ -9,17 +9,21 @@ from app.models.user import User
 from app.utils.jwt import decode_access_token
 
 
-async def get_current_user(access_token: str | None = Cookie(default=None)) -> User:
-    """Resolve the current authenticated user from the JWT session cookie.
+async def get_current_user(authorization: str | None = Header(default=None)) -> User:
+    """Resolve the current authenticated user from the Authorization header.
 
-    Reads the ``access_token`` httponly cookie, decodes the JWT, and loads
+    Expects ``Authorization: Bearer <token>``, decodes the JWT, and loads
     the corresponding ``User`` from the database.
 
     Raises:
-        HTTPException(401) – cookie missing, token invalid/expired, or user
-                             no longer exists in the database.
+        HTTPException(401) – header missing/malformed, token invalid/expired,
+                             or user no longer exists in the database.
     """
-    if access_token is None:
+    if authorization is None or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    access_token = authorization.removeprefix("Bearer ").strip()
+    if not access_token:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
     try:

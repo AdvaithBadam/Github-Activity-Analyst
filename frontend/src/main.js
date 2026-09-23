@@ -3,7 +3,8 @@
  *
  * Auth flow
  * ---------
- * 1. GET /auth/github/me  (credentials: 'include') to check session cookie.
+ * 1. Capture ``token`` from the OAuth redirect URL into sessionStorage,
+ *    then GET /auth/github/me with Authorization: Bearer <token>.
  *    200 → show dashboard + fetch stats.
  *    401/403 → show login button.
  *
@@ -45,37 +46,37 @@ if (!BACKEND_URL) {
 
 // ── DOM refs ────────────────────────────────────────────────────────────────────
 
-const pageLoader       = document.getElementById('page-loader');
-const authSection      = document.getElementById('auth-section');
+const pageLoader = document.getElementById('page-loader');
+const authSection = document.getElementById('auth-section');
 const dashboardSection = document.getElementById('dashboard-section');
-const loginBtn         = document.getElementById('login-btn');
-const usernameDisplay  = document.getElementById('username-display');
+const loginBtn = document.getElementById('login-btn');
+const usernameDisplay = document.getElementById('username-display');
 
-const currentStreakEl  = document.getElementById('current-streak-value');
-const longestStreakEl  = document.getElementById('longest-streak-value');
-const streakGaugeArc   = document.getElementById('streak-gauge-arc');
+const currentStreakEl = document.getElementById('current-streak-value');
+const longestStreakEl = document.getElementById('longest-streak-value');
+const streakGaugeArc = document.getElementById('streak-gauge-arc');
 const weeklyVelocityEl = document.getElementById('weekly-velocity-value');
-const activeReposEl    = document.getElementById('active-repos-value');
-const lastUpdatedEl    = document.getElementById('last-updated');
-const zeroDataPrompt   = document.getElementById('zero-data-prompt');
+const activeReposEl = document.getElementById('active-repos-value');
+const lastUpdatedEl = document.getElementById('last-updated');
+const zeroDataPrompt = document.getElementById('zero-data-prompt');
 
-const syncBtn          = document.getElementById('sync-btn');
-const syncBtnLabel     = document.getElementById('sync-btn-label');
-const syncError        = document.getElementById('sync-error');
+const syncBtn = document.getElementById('sync-btn');
+const syncBtnLabel = document.getElementById('sync-btn-label');
+const syncError = document.getElementById('sync-error');
 
-const heatmapGrid      = document.getElementById('heatmap-grid');
-const heatmapError     = document.getElementById('heatmap-error');
+const heatmapGrid = document.getElementById('heatmap-grid');
+const heatmapError = document.getElementById('heatmap-error');
 
-const reposError       = document.getElementById('repos-error');
-const reposEmpty       = document.getElementById('repos-empty');
+const reposError = document.getElementById('repos-error');
+const reposEmpty = document.getElementById('repos-empty');
 
-const patternError     = document.getElementById('pattern-error');
+const patternError = document.getElementById('pattern-error');
 
 // ── Chart instances (created once, updated on each stats fetch) ────────────────
 
-let reposChart  = null;
-let hourChart   = null;
-let dowChart    = null;
+let reposChart = null;
+let hourChart = null;
+let dowChart = null;
 
 // ── Shared chart options factory ────────────────────────────────────────────────
 
@@ -95,12 +96,12 @@ function baseBarOptions(extraScaleY = {}) {
     },
     scales: {
       x: {
-        grid:  { color: 'rgba(255,255,255,0.05)' },
+        grid: { color: 'rgba(255,255,255,0.05)' },
         ticks: { color: '#8b949e', font: { family: 'JetBrains Mono', size: 11 } },
       },
       y: {
         beginAtZero: true,
-        grid:  { color: 'rgba(255,255,255,0.05)' },
+        grid: { color: 'rgba(255,255,255,0.05)' },
         ticks: {
           color: '#8b949e',
           font: { family: 'JetBrains Mono', size: 11 },
@@ -158,8 +159,8 @@ function updateStreakGauge(currentStreak, longestStreak) {
  */
 function heatLevel(count) {
   if (count === 0) return 0;
-  if (count <= 2)  return 1;
-  if (count <= 5)  return 2;
+  if (count <= 2) return 1;
+  if (count <= 5) return 2;
   if (count <= 10) return 3;
   return 4;
 }
@@ -191,7 +192,7 @@ function renderHeatmap(days) {
 
   for (const d of days) {
     const count = d.commit_count;
-    const cell  = document.createElement('span');
+    const cell = document.createElement('span');
     cell.className = `heatmap-cell hc-${heatLevel(count)}`;
     cell.dataset.date = d.date;
     cell.dataset.count = count;
@@ -202,7 +203,7 @@ function renderHeatmap(days) {
       : `${count} contribution${count !== 1 ? 's' : ''}`;
 
     cell.title = `${countText} on ${formattedDate}`;
-    cell.setAttribute('aria-label', cell.title);
+    cell.setAttribute('aria-label', `${countText} on ${formattedDate}`);
     heatmapGrid.appendChild(cell);
   }
 
@@ -236,10 +237,10 @@ function renderHeatmap(days) {
       if (!tooltipEl || tooltipEl.classList.contains('hidden')) return;
 
       const left = e.clientX;
-      const top  = e.clientY - 38;
+      const top = e.clientY - 38;
 
       tooltipEl.style.left = `${left}px`;
-      tooltipEl.style.top  = `${top}px`;
+      tooltipEl.style.top = `${top}px`;
     });
 
     heatmapGrid.addEventListener('mouseleave', () => {
@@ -271,7 +272,7 @@ function renderReposChart(repos) {
       : r.repo_name
   );
   const values = top5.map((r) => r.commit_count);
-  const ctx    = document.getElementById('repos-chart').getContext('2d');
+  const ctx = document.getElementById('repos-chart').getContext('2d');
 
   const dataset = {
     label: 'Commits',
@@ -335,9 +336,9 @@ function renderReposChart(repos) {
 
 function renderPatternCharts(pattern) {
   // Hour chart (green color palette)
-  const hourLabels  = pattern.by_hour_utc.map((h) => String(h.hour).padStart(2, '0'));
-  const hourValues  = pattern.by_hour_utc.map((h) => h.commit_count);
-  const hourCtx     = document.getElementById('hour-chart').getContext('2d');
+  const hourLabels = pattern.by_hour_utc.map((h) => String(h.hour).padStart(2, '0'));
+  const hourValues = pattern.by_hour_utc.map((h) => h.commit_count);
+  const hourCtx = document.getElementById('hour-chart').getContext('2d');
 
   if (hourChart) {
     hourChart.data.labels = hourLabels;
@@ -365,7 +366,7 @@ function renderPatternCharts(pattern) {
   // Day-of-week chart (green color palette)
   const dowLabels = pattern.by_day_of_week.map((d) => d.day.slice(0, 3));
   const dowValues = pattern.by_day_of_week.map((d) => d.commit_count);
-  const dowCtx    = document.getElementById('dow-chart').getContext('2d');
+  const dowCtx = document.getElementById('dow-chart').getContext('2d');
 
   if (dowChart) {
     dowChart.data.labels = dowLabels;
@@ -393,8 +394,8 @@ function renderPatternCharts(pattern) {
 
 // ── Helpers ─────────────────────────────────────────────────────────────────────
 
-function showLoader()  { pageLoader.classList.remove('hidden'); }
-function hideLoader()  {
+function showLoader() { pageLoader.classList.remove('hidden'); }
+function hideLoader() {
   pageLoader.classList.add('fade-out');
   setTimeout(() => pageLoader.classList.add('hidden'), 380);
 }
@@ -451,15 +452,15 @@ function clearPanelError(el) {
 // ── Stats rendering ──────────────────────────────────────────────────────────────
 
 function renderSummary(data) {
-  const cs = data.current_streak  ?? 0;
-  const ls = data.longest_streak  ?? 0;
+  const cs = data.current_streak ?? 0;
+  const ls = data.longest_streak ?? 0;
   const wv = data.weekly_velocity ?? 0;
-  const ar = data.active_repos    ?? 0;
+  const ar = data.active_repos ?? 0;
 
-  if (currentStreakEl)  currentStreakEl.textContent  = cs;
-  if (longestStreakEl)  longestStreakEl.textContent  = ls;
+  if (currentStreakEl) currentStreakEl.textContent = cs;
+  if (longestStreakEl) longestStreakEl.textContent = ls;
   if (weeklyVelocityEl) weeklyVelocityEl.textContent = wv;
-  if (activeReposEl)    activeReposEl.textContent    = ar;
+  if (activeReposEl) activeReposEl.textContent = ar;
 
   updateStreakGauge(cs, ls);
 
@@ -477,8 +478,19 @@ function renderSummary(data) {
 
 // ── API helpers ──────────────────────────────────────────────────────────────────
 
-async function apiFetch(path) {
-  const resp = await fetch(`${BACKEND_URL}${path}`, { credentials: 'include' });
+function getAuthHeaders() {
+  const token = sessionStorage.getItem('access_token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+async function apiFetch(path, options = {}) {
+  const resp = await fetch(`${BACKEND_URL}${path}`, {
+    ...options,
+    headers: {
+      ...getAuthHeaders(),
+      ...(options.headers || {}),
+    },
+  });
   if (!resp.ok) throw new Error(`${path} returned HTTP ${resp.status}`);
   return resp.json();
 }
@@ -534,7 +546,7 @@ async function fetchAllStats() {
 
 async function checkAuth() {
   const resp = await fetch(`${BACKEND_URL}/auth/github/me`, {
-    credentials: 'include',
+    headers: getAuthHeaders(),
   });
 
   if (resp.ok) {
@@ -543,6 +555,7 @@ async function checkAuth() {
     showDashboard();
     await fetchAllStats();
   } else {
+    if (resp.status === 401) sessionStorage.removeItem('access_token');
     loginBtn.href = `${BACKEND_URL}/auth/github/login`;
     showAuth();
   }
@@ -557,7 +570,7 @@ async function syncNow() {
   try {
     const resp = await fetch(`${BACKEND_URL}/sync/github`, {
       method: 'POST',
-      credentials: 'include',
+      headers: getAuthHeaders(),
     });
 
     if (!resp.ok) {
@@ -583,9 +596,22 @@ syncBtn.addEventListener('click', syncNow);
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────────
 
+function captureTokenFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('token');
+  if (!token) return;
+
+  sessionStorage.setItem('access_token', token);
+  params.delete('token');
+  const query = params.toString();
+  const newUrl = `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`;
+  window.history.replaceState({}, '', newUrl);
+}
+
 (async () => {
   showLoader();
   try {
+    captureTokenFromUrl();
     await checkAuth();
   } catch (err) {
     console.error('[bootstrap] Auth check failed:', err);

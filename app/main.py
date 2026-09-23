@@ -24,10 +24,9 @@ app = FastAPI(
 # wildcard ("*") is incompatible with allow_credentials=True.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[origin.strip() for origin in settings.FRONTEND_URL.split(",")],
-    allow_credentials=True,
+    allow_origins=[o.strip() for o in settings.FRONTEND_URL.split(",")],
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # ── Routers ──────────────────────────────────────────────────────
