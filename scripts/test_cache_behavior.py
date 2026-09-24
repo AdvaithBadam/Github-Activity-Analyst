@@ -74,7 +74,7 @@ async def get_jwt(github_username: str) -> tuple[str, int]:
 async def hit(transport, jwt_token: str) -> dict:
     """Fire a single GET /stats/summary via ASGI transport and return (status, body)."""
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-        resp = await client.get("/stats/summary", cookies={"access_token": jwt_token})
+        resp = await client.get("/stats/summary", headers={"Authorization": f"Bearer {jwt_token}"})
         return resp.status_code, resp.json()
 
 

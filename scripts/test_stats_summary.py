@@ -229,7 +229,7 @@ async def main() -> None:
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-        resp = await client.get("/stats/summary", cookies={"access_token": jwt_token})
+        resp = await client.get("/stats/summary", headers={"Authorization": f"Bearer {jwt_token}"})
 
     print("-- Actual response ----------------------------------------------------")
     print(f"STATUS CODE: {resp.status_code}")

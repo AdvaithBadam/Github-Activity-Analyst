@@ -122,7 +122,7 @@ async def main() -> None:
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.get(
             "/stats/activity-pattern",
-            cookies={"access_token": jwt_token},
+            headers={"Authorization": f"Bearer {jwt_token}"},
         )
 
     print(f"STATUS CODE: {resp.status_code}")
