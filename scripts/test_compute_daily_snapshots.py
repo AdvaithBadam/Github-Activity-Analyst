@@ -34,9 +34,14 @@ from app.services.sync_service import compute_daily_snapshots
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+TOKEN = os.getenv("TEST_GITHUB_PAT")
 
 if not DATABASE_URL:
     print("ERROR: DATABASE_URL not found in .env")
+    sys.exit(1)
+if not TOKEN:
+    print("ERROR: Set TEST_GITHUB_PAT in your .env file first.")
+    print("       Generate one at https://github.com/settings/tokens")
     sys.exit(1)
 
 
@@ -58,13 +63,30 @@ async def main() -> None:
     engine = create_async_engine(DATABASE_URL, echo=False)
     session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
+    # ── Resolve GitHub username via the API ──────────────────────
+    import httpx
+
+    async with httpx.AsyncClient() as http:
+        resp = await http.get(
+            "https://api.github.com/user",
+            headers={"Authorization": f"Bearer {TOKEN}", "Accept": "application/vnd.github+json"},
+        )
+        if resp.status_code != 200:
+            print(f"ERROR: Could not fetch GitHub user (status {resp.status_code})")
+            sys.exit(1)
+        github_username: str = resp.json()["login"]
+
+    print(f"GitHub user: {github_username}\n")
+
     # ── Load existing User ───────────────────────────────────────────────────
     async with session_factory() as session:
-        result = await session.execute(select(User))
-        user = result.scalars().first()
+        result = await session.execute(
+            select(User).where(User.github_username == github_username)
+        )
+        user = result.scalar_one_or_none()
 
     if user is None:
-        print("ERROR: No User row found in the database.")
+        print("ERROR: No User row found for this github_username.")
         print("       Run test_sync_repos.py first to create a User and sync repos,")
         print("       then run test_sync_commits.py to populate Commit rows.")
         sys.exit(1)
