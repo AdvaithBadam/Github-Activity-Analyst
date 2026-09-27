@@ -173,6 +173,12 @@ async def sync_commits(
                 )
                 repos_skipped_404 += 1
                 continue
+            if exc.status_code == 409:
+                logger.info(
+                    "409 fetching commits for %s/%s — empty repository (git repository is empty), skipping",
+                    owner, repo_name,
+                )
+                continue
             raise
 
         # ── Upsert commits ───────────────────────────────────────
