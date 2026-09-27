@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, UniqueConstraint, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -17,13 +17,14 @@ if TYPE_CHECKING:
 
 class Repo(Base):
     __tablename__ = "repos"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    github_repo_id: Mapped[int] = mapped_column(Integer, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+
     __table_args__ = (
         UniqueConstraint("user_id", "github_repo_id", name="uq_repos_user_id_github_repo_id"),
     )
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    github_repo_id: Mapped[int] = mapped_column(index=True)
     name: Mapped[str] = mapped_column()
     is_owner: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     owner_login: Mapped[str | None] = mapped_column(nullable=True)
