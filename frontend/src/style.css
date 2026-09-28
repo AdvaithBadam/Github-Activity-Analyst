@@ -312,7 +312,7 @@ html, body {
 }
 
 .gauge-track {
-  stroke: #f9fafb;
+  stroke: #ffffff;
   opacity: 0.2;
   transition: stroke 0.3s ease;
 }
@@ -581,7 +581,7 @@ html, body {
   font-family: var(--font-mono), 'Inter', sans-serif;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
   white-space: nowrap;
-  transform: translateX(-50%);
+  transform: translate(-50%, -100%);
   transition: opacity 0.1s ease;
 }
 

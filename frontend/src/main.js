@@ -202,7 +202,6 @@ function renderHeatmap(days) {
       ? 'No contributions'
       : `${count} contribution${count !== 1 ? 's' : ''}`;
 
-    cell.title = `${countText} on ${formattedDate}`;
     cell.setAttribute('aria-label', `${countText} on ${formattedDate}`);
     heatmapGrid.appendChild(cell);
   }
@@ -219,6 +218,10 @@ function renderHeatmap(days) {
         return;
       }
 
+      if (tooltipEl && tooltipEl.parentElement !== document.body) {
+        document.body.appendChild(tooltipEl);
+      }
+
       const count = parseInt(cell.dataset.count, 10);
       const dateStr = cell.dataset.date;
       const formattedDate = formatHeatmapDate(dateStr);
@@ -229,18 +232,15 @@ function renderHeatmap(days) {
       if (tooltipEl) {
         tooltipEl.innerHTML = `<strong>${countText}</strong> on ${formattedDate}`;
         tooltipEl.classList.remove('hidden');
+
+        const rect = cell.getBoundingClientRect();
+        const halfWidth = tooltipEl.offsetWidth / 2;
+        const centerX = rect.left + rect.width / 2;
+        const clampedX = Math.max(halfWidth + 8, Math.min(window.innerWidth - halfWidth - 8, centerX));
+
+        tooltipEl.style.left = `${clampedX}px`;
+        tooltipEl.style.top = `${rect.top - 8}px`;
       }
-    });
-
-    heatmapGrid.addEventListener('mousemove', (e) => {
-      const tooltipEl = document.getElementById('heatmap-tooltip');
-      if (!tooltipEl || tooltipEl.classList.contains('hidden')) return;
-
-      const left = e.clientX;
-      const top = e.clientY - 38;
-
-      tooltipEl.style.left = `${left}px`;
-      tooltipEl.style.top = `${top}px`;
     });
 
     heatmapGrid.addEventListener('mouseleave', () => {
